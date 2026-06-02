@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -45,11 +46,19 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           className="w-full border rounded px-3 py-2 bg-white"
         />
-        <input
-          type="password" required minLength={6} placeholder="Passwort" value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full border rounded px-3 py-2 bg-white"
-        />
+        <div className="relative">
+          <input
+            type={showPw ? 'text' : 'password'} required minLength={6} placeholder="Passwort" value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full border rounded px-3 py-2 pr-16 bg-white"
+          />
+          <button
+            type="button" onClick={() => setShowPw((s) => !s)}
+            className="absolute inset-y-0 right-0 px-3 text-sm text-indigo-600"
+          >
+            {showPw ? 'verbergen' : 'zeigen'}
+          </button>
+        </div>
         <button
           type="submit" disabled={busy}
           className="w-full bg-indigo-600 text-white rounded py-2 disabled:opacity-50"
