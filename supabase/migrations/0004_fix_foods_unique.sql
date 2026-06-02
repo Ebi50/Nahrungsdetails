@@ -6,9 +6,11 @@
 -- (custom/mix) kollidieren nicht, da NULLs in Unique-Constraints als verschieden
 -- gelten. usda/off haben immer eine source_ref.
 
-drop index if exists public.foods_source_ref_uniq;
-
+-- Erst die Constraint entfernen (sie besitzt ggf. den gleichnamigen Index),
+-- dann einen evtl. verbliebenen freien Index, dann sauber neu anlegen.
 alter table public.foods
   drop constraint if exists foods_source_ref_uniq;
+drop index if exists public.foods_source_ref_uniq;
+
 alter table public.foods
   add constraint foods_source_ref_uniq unique (source, source_ref);
