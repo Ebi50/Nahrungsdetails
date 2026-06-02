@@ -41,6 +41,52 @@ export async function searchUsda(query: string, pageSize = 20): Promise<External
   }));
 }
 
+// OFF-Textsuche (mehrsprachig — kennt deutsche Begriffe wie "Dinkelflocken").
+// Kein API-Key, aber Rate-Limit ~10/min -> nur per Such-Button, Ergebnisse cachen.
+export async function searchOff(query: string, pageSize = 20): Promise<ExternalFood[]> {
+  const url = new URL(`${OFF_BASE}/cgi/search.pl`);
+  url.searchParams.set('search_terms', query);
+  url.searchParams.set('search_simple', '1');
+  url.searchParams.set('action', 'process');
+  url.searchParams.set('json', '1');
+  url.searchParams.set('page_size', String(pageSize));
+  // Felder gezielt anfordern -> kleinere Antwort.
+  url.searchParams.set('fields', 'code,product_name,product_name_de,generic_name_de,brands,nutriments');
+
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Naehrstoffbilanz/1.0 (github.com/Ebi50/Nahrungsdetails)' },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`OFF-Suche fehlgeschlagen: ${res.status}`);
+  const data = (await res.json()) as {
+    products?: Array<{
+      code?: string;
+      product_name?: string;
+      product_name_de?: string;
+      generic_name_de?: string;
+      brands?: string;
+      nutriments?: Record<string, number>;
+    }>;
+  };
+
+  return (data.products ?? [])
+    .filter((p) => p.code)
+    .map((p) => {
+      const name =
+        (p.product_name_de || p.product_name || p.generic_name_de || '').trim() ||
+        `Produkt ${p.code}`;
+      return {
+        source: 'off' as const,
+        source_ref: p.code as string,
+        name,
+        brand: p.brands ?? null,
+        per_100g: normalizeOff(p),
+      };
+    })
+    // Nur Treffer mit Namen und wenigstens einem Energie-/Makrowert behalten.
+    .filter((f) => f.per_100g.kcal !== undefined || f.per_100g.protein !== undefined);
+}
+
 // OFF-Barcode-Lookup (kein API-Key nötig).
 export async function getOffProduct(barcode: string): Promise<ExternalFood | null> {
   const res = await fetch(`${OFF_BASE}/api/v2/product/${encodeURIComponent(barcode)}.json`, {
