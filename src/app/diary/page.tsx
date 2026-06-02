@@ -25,6 +25,8 @@ export default function DiaryPage() {
   const [balance, setBalance] = useState<BalanceData | null>(null);
   const [activity, setActivity] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Food | null>(null);
+  const [grams, setGrams] = useState(100);
   const router = useRouter();
   const supabase = createClient();
 
@@ -58,16 +60,20 @@ export default function DiaryPage() {
 
   useEffect(() => { reload(); }, [reload]);
 
-  async function addFood(food: Food) {
-    const input = window.prompt(`Wie viel Gramm "${food.name}"?`, '100');
-    if (!input) return;
-    const grams = Number(input);
+  function pickFood(food: Food) {
+    setSelected(food);
+    setGrams(100);
+  }
+
+  async function confirmAdd() {
+    if (!selected) return;
     if (!Number.isFinite(grams) || grams <= 0) return;
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return;
     await supabase.from('diary_entries').insert({
-      user_id: auth.user.id, date, food_id: food.id, grams,
+      user_id: auth.user.id, date, food_id: selected.id, grams,
     });
+    setSelected(null);
     reload();
   }
 
@@ -101,7 +107,32 @@ export default function DiaryPage() {
       </div>
 
       <section>
-        <FoodSearch onPick={addFood} />
+        <FoodSearch onPick={pickFood} />
+        {selected && (
+          <div className="mt-3 border rounded p-3 bg-indigo-50 flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-40">
+              <div className="text-sm font-medium">{selected.name}</div>
+              <div className="text-xs text-gray-500">
+                {Math.round(selected.per_100g.kcal ?? 0)} kcal / 100 g · Quelle: {selected.source}
+              </div>
+            </div>
+            <label className="block">
+              <span className="text-xs text-gray-600">Menge (g)</span>
+              <input
+                type="number" min={1} step={5} value={grams}
+                onChange={(e) => setGrams(Number(e.target.value))}
+                className="mt-1 border rounded px-3 py-2 bg-white w-28"
+                autoFocus
+              />
+            </label>
+            <button onClick={confirmAdd} className="bg-indigo-600 text-white rounded px-4 py-2">
+              Hinzufügen
+            </button>
+            <button onClick={() => setSelected(null)} className="text-gray-500 px-2 py-2 text-sm">
+              Abbrechen
+            </button>
+          </div>
+        )}
       </section>
 
       <section>

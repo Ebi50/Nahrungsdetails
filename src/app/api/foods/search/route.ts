@@ -53,7 +53,10 @@ export async function GET(req: NextRequest) {
       per_100g: f.per_100g,
       updated_at: new Date().toISOString(),
     }));
-    await admin.from('foods').upsert(rows, { onConflict: 'source,source_ref' });
+    const { error: upsertErr } = await admin
+      .from('foods')
+      .upsert(rows, { onConflict: 'source,source_ref' });
+    if (upsertErr) warnings.push(`Cache-Schreiben fehlgeschlagen: ${upsertErr.message}`);
   }
 
   // 4) Cache erneut lesen, damit die IDs der frischen Einträge zurückkommen.
