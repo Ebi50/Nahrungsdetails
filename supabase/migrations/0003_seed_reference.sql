@@ -1,6 +1,9 @@
 -- DGE/D-A-CH-Referenzwerte (Mikros), Erwachsene 19–65 (Abschnitt 7).
 -- Erweiterbar um weitere Alters-/Sondergruppen (Schwangerschaft etc.).
 -- 'any' = für beide Geschlechter identisch.
+-- Idempotent: vorhandene Werte dieser Gruppe vor dem Insert entfernen.
+
+delete from public.reference_values where age_min = 19 and age_max = 200;
 
 insert into public.reference_values (sex, age_min, age_max, nutrient_key, value, unit) values
   -- gleich für beide Geschlechter
