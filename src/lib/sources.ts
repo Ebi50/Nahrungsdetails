@@ -42,15 +42,36 @@ export async function searchUsda(query: string, pageSize = 20): Promise<External
 }
 
 // OFF-Textsuche (mehrsprachig — kennt deutsche Begriffe wie "Dinkelflocken").
-// Kein API-Key, aber Rate-Limit ~10/min -> nur per Such-Button, Ergebnisse cachen.
+// Nutzt den neuen "Search-a-licious"-Dienst; der alte /cgi/search.pl ist häufig 503.
+// Kein API-Key. Ergebnisse werden gecacht (Rate-Limits schonen).
+const OFF_SEARCH_BASE = 'https://search.openfoodfacts.org';
+
+type OffHit = {
+  code?: string;
+  product_name?: string;
+  product_name_de?: string;
+  generic_name_de?: string;
+  brands?: string;
+  nutriments?: Record<string, number>;
+};
+
+function hitToFood(p: OffHit): ExternalFood {
+  const name =
+    (p.product_name_de || p.product_name || p.generic_name_de || '').trim() ||
+    `Produkt ${p.code}`;
+  return {
+    source: 'off',
+    source_ref: p.code as string,
+    name,
+    brand: p.brands ?? null,
+    per_100g: normalizeOff(p),
+  };
+}
+
 export async function searchOff(query: string, pageSize = 20): Promise<ExternalFood[]> {
-  const url = new URL(`${OFF_BASE}/cgi/search.pl`);
-  url.searchParams.set('search_terms', query);
-  url.searchParams.set('search_simple', '1');
-  url.searchParams.set('action', 'process');
-  url.searchParams.set('json', '1');
+  const url = new URL(`${OFF_SEARCH_BASE}/search`);
+  url.searchParams.set('q', query);
   url.searchParams.set('page_size', String(pageSize));
-  // Felder gezielt anfordern -> kleinere Antwort.
   url.searchParams.set('fields', 'code,product_name,product_name_de,generic_name_de,brands,nutriments');
 
   const res = await fetch(url, {
@@ -58,31 +79,11 @@ export async function searchOff(query: string, pageSize = 20): Promise<ExternalF
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`OFF-Suche fehlgeschlagen: ${res.status}`);
-  const data = (await res.json()) as {
-    products?: Array<{
-      code?: string;
-      product_name?: string;
-      product_name_de?: string;
-      generic_name_de?: string;
-      brands?: string;
-      nutriments?: Record<string, number>;
-    }>;
-  };
+  const data = (await res.json()) as { hits?: OffHit[] };
 
-  return (data.products ?? [])
+  return (data.hits ?? [])
     .filter((p) => p.code)
-    .map((p) => {
-      const name =
-        (p.product_name_de || p.product_name || p.generic_name_de || '').trim() ||
-        `Produkt ${p.code}`;
-      return {
-        source: 'off' as const,
-        source_ref: p.code as string,
-        name,
-        brand: p.brands ?? null,
-        per_100g: normalizeOff(p),
-      };
-    })
+    .map(hitToFood)
     // Nur Treffer mit Namen und wenigstens einem Energie-/Makrowert behalten.
     .filter((f) => f.per_100g.kcal !== undefined || f.per_100g.protein !== undefined);
 }
